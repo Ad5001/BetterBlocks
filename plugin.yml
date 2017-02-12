@@ -1,0 +1,16 @@
+---
+#  ____           _     _                   ____    _                  _          
+# | __ )    ___  | |_  | |_    ___   _ __  | __ )  | |   ___     ___  | | __  ___ 
+# |  _ \   / _ \ | __| | __|  / _ \ | '__| |  _ \  | |  / _ \   / __| | |/ / / __|
+# | |_) | |  __/ | |_  | |_  |  __/ | |    | |_) | | | | (_) | | (__  |   <  \__ \
+# |____/   \___|  \__|  \__|  \___| |_|    |____/  |_|  \___/   \___| |_|\_\ |___/
+#
+# Extends your Minecraft PE blocks palette ! For PocketMine.
+name: BetterBlocks
+author:  Ad5001
+version: 1.0
+api: [2.0.0]
+main: Ad5001\BetterBlocks\Main
+commands: 
+permissions: []
+...
