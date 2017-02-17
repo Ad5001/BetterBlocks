@@ -17,7 +17,7 @@ use pocketmine\Player;
 
 
 use Ad5001\BetterBlocks\CustomBlockData;
-use Ad5001\BetterBlocks\CustomBlockData\VacuumTile;
+use Ad5001\BetterBlocks\Main;
 
 
 
@@ -42,8 +42,16 @@ class AttractTask extends PluginTask {
    public function onRun($tick) {
        foreach($this->server->getLevels() as $level) {
            foreach($level->getTiles() as $tile) {
-               if($tile instanceof VacuumTile) {
-
+               if(get_class($tile) == "pocketmine\\tile\\Hopper" && isset($tile->namedtag->isVacuum) && $tile->namedtag->isVacuum->getValue() == 1) {
+                   for($i = 0; $i < 10; $i++) { // Particles
+                        $level->addParticle(new \pocketmine\level\particle\PortalParticle(new \pocketmine\math\Vector3($tile->x + rand(-70, 170) / 100, $tile->y + rand(-70, 130) / 100, $tile->z + rand(-70, 170) / 100)));
+                   }
+                    foreach($level->getEntities() as $et) {
+                        if($et instanceof \pocketmine\entity\Item && $et->distance($tile) < 3) {
+                            $tile->getInventory()->addItem($et->getItem());
+                            $et->close();
+                        }
+                    }
                }
            }
        }

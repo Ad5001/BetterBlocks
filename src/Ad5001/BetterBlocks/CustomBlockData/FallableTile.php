@@ -86,6 +86,7 @@ class FallableTile extends CustomBlockData {
 					"TileID" => new IntTag("TileID", $this->getBlock()->getId()),
 					"Data" => new ByteTag("Data", $this->getBlock()->getDamage()),
 				]))->spawnToAll();
+                $this->level->removeTile($this);
                 // $this->getLevel()->setBlock($this, Block::get(0, 0));
             }
    }

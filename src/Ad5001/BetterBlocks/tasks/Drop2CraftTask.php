@@ -27,6 +27,8 @@ use Ad5001\BetterBlocks\CustomBlockData\FallableTile;
 use Ad5001\BetterBlocks\CustomBlockData\RedstonePoweringTile;
 use Ad5001\BetterBlocks\CustomBlockData\SoundHolderTile;
 
+use Ad5001\BetterBlocks\Main;
+
 
 
 class Drop2CraftTask extends PluginTask {

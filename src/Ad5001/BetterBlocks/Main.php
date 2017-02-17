@@ -28,11 +28,11 @@ use Ad5001\BetterBlocks\CustomBlockData\GraveTile;
 use Ad5001\BetterBlocks\CustomBlockData\RedstonePoweringTile;
 use Ad5001\BetterBlocks\CustomBlockData\SoundHolderTile;
 use Ad5001\BetterBlocks\CustomBlockData\StickTile;
-use Ad5001\BetterBlocks\CustomBlockData\VacuumTile;
 
 use Ad5001\BetterBlocks\tasks\AttractTask;
 use Ad5001\BetterBlocks\tasks\BlockRegenerateTask;
 use Ad5001\BetterBlocks\tasks\Drop2CraftTask;
+use Ad5001\BetterBlocks\tasks\SetVacuumTask;
 
 class Main extends PluginBase implements Listener {
 
@@ -51,7 +51,7 @@ class Main extends PluginBase implements Listener {
        $this->getServer()->getCraftingManager()->registerRecipe((new ShapedRecipe($ssb, 3, 3))->addIngredient(1, 1, $ep)->addIngredient(1, 2, Item::get(165, 0)));
        // Vacuum Hopper
        $vh = Item::get(410, 0);
-       $vh->setNamedTag(NBT::parseJSON('{"isVacuum":"true"}'));
+       $vh->setNamedTag(NBT::parseJSON('{"isVacuum":"true"'));
        $vh->setCustomName("§rVacuum Item Hopper");
        $this->getServer()->getCraftingManager()->registerRecipe((new ShapedRecipe($vh, 3, 3))->addIngredient(1, 0, $ep)->addIngredient(0, 0, Item::get(410, 0))->addIngredient(0, 1, Item::get(49, 0)));
        // Trappers (used to create trap blocks)
@@ -93,7 +93,10 @@ class Main extends PluginBase implements Listener {
        Tile::registerTile(RedstonePoweringTile::class);
        Tile::registerTile(SoundHolderTile::class);
        Tile::registerTile(StickTile::class);
-       Tile::registerTile(VacuumTile::class);
+
+       // Launch tasks
+       $this->getServer()->getScheduler()->scheduleRepeatingTask(new AttractTask($this), 5);
+       $this->getServer()->getScheduler()->scheduleRepeatingTask(new Drop2CraftTask($this), 5);
 
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->saveDefaultConfig();
@@ -110,11 +113,12 @@ class Main extends PluginBase implements Listener {
         if(isset($event->getItem()->getNamedTag()->isStickable) && $event->getItem()->getNamedTag()->isStickable->getValue() == "true") {
             Tile::createTile("StickTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode([$event->getBlock()->x, $event->getBlock()->y, $event->getBlock()->z], JSON_FORCE_OBJECT)));
         } elseif(isset($event->getItem()->getNamedTag()->isVacuum) && $event->getItem()->getNamedTag()->isVacuum->getValue() == "true") {
-            Tile::createTile("VacuumTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode([$event->getBlock()->x, $event->getBlock()->y, $event->getBlock()->z], JSON_FORCE_OBJECT)));
+            $this->getServer()->getScheduler()->scheduleRepeatingTask(new SetVacuumTask($this, $event->getBlock()), 1); // Tile gets created after the event so delaying it one 1 tick.
         } elseif(isset($event->getItem()->getNamedTag()->isTrapper) && $event->getItem()->getNamedTag()->isTrapper->getValue() == "true") {
             Tile::createTile("TrapTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode([$event->getBlock()->x, $event->getBlock()->y - 1, $event->getBlock()->z], JSON_FORCE_OBJECT)));
             $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, Block::get(0, 0), $event->getBlock()->getLevel()), 30); // Clears the lever
         }
+        $this->getLogger()->debug("Created tile " . json_encode($event->getBlock()->getLevel()->getTile($event->getBlock())));
     }
 
 
@@ -125,32 +129,41 @@ class Main extends PluginBase implements Listener {
     public function onBlockBreak(BlockBreakEvent $event) {
         //1
         $block = $event->getBlock();
-        if($event->getBlock()->getLevel()->getTile($block) instanceof CustomBlockData && !$event->isCancelled()) {
-            switch(substr(get_class($event->getBlock()->getLevel()->getTile($block)), 36)) {
-                case "GraveTile":
-                $event->getBlock()->getLevel()->getTile($block)->drop();
+        if($event->getBlock()->getLevel()->getTile($event->getBlock()) instanceof CustomBlockData && !$event->isCancelled()) {
+            switch(get_class($event->getBlock()->getLevel()->getTile($event->getBlock()))) {
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\GraveTile":
+                $event->getBlock()->getLevel()->getTile($event->getBlock())->drop();
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
                 break;
-                case "RedstonePoweringTile":
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\RedstonePoweringTile":
                 $redstoneblock = Item::get(152, 0);
                 $event->setDrops(array_merge([$redstoneblock], $event->getDrops()));
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
                 break;
-                case "SoundHolderTile":
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\SoundHolderTile":
                 $noteblock = Item::get(25, 0);
                 $event->setDrops(array_merge([$noteblock], $event->getDrops()));
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
                 break;
-                case "StickTile":
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\StickTile":
                 $ssb = Item::get(165, 0);
                 $ssb->setCustomName("§rSticky Slime Block");
                 $ssb->setNamedTag(NBT::parseJSON('{"isStickable":"true"}'));
                 $event->setDrops([$ssb]);
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
                 break;
-                case "TrapTile":
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\TrapTile":
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
                 break;
-                case "VacuumTile":
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\VacuumTile":
                 $vh = Item::get(410, 0);
                 $vh->setNamedTag(NBT::parseJSON('{"isVacuum":"true"}'));
                 $vh->setCustomName("§rVacuum Item Hopper");
                 $event->setDrops([$vh]);
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
+                break;
+                case "Ad5001\\BetterBlocks\\CustomBlockData\\FallableTile":
+                $event->getBlock()->getLevel()->removeTile($event->getBlock()->getLevel()->getTile($event->getBlock()));
                 break;
             }
         }
@@ -163,6 +176,7 @@ class Main extends PluginBase implements Listener {
     @param     $event    \pocketmine\event\player\PlayerInteractEvent
     */
     public function onInteract(\pocketmine\event\player\PlayerInteractEvent $event) {
+        $this->getLogger()->info(get_class($event->getBlock()->getLevel()->getTile($event->getBlock())));
         if(isset($event->getItem()->getNamedTag()->isHammer) && $event->getItem()->getNamedTag()->isHammer == "true" && !($event->getBlock() instanceof \pocketmine\block\Fallable) && !($event->getBlock()->getLevel()->getTile($event->getBlock()) instanceof Tile)) {
             Tile::createTile("FallableTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON('{"x":"'.$event->getBlock()->x.'","y":"' .$event->getBlock()->y.'","z":"'. $event->getBlock()->z . '"}'));
             $event->getPlayer()->sendPopup("This block seems now unstable... You shouldn't walk on it...");
@@ -218,9 +232,9 @@ class Main extends PluginBase implements Listener {
 
         // 1)
         if($tileUnder instanceof TrapTile) {
-            $block = clone $event->getPlayer()->getLevel()->getBlock($v3Under);
+            $b = clone $event->getPlayer()->getLevel()->getBlock($v3Under);
             $event->getPlayer()->getLevel()->setBlock($v3Under, Block::get(0, 0));
-            $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, $block, $event->getPlayer()->getLevel()), 30);
+            $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, $b, $event->getPlayer()->getLevel()), 30);
         }
         // 2)
         if($tileUnder instanceof StickTile || $tileUpper instanceof StickTile) {
