@@ -33,13 +33,23 @@ use Ad5001\BetterBlocks\tasks\AttractTask;
 use Ad5001\BetterBlocks\tasks\BlockRegenerateTask;
 use Ad5001\BetterBlocks\tasks\Drop2CraftTask;
 use Ad5001\BetterBlocks\tasks\SetVacuumTask;
+use Ad5001\BetterBlocks\tasks\StickTask;
 
 class Main extends PluginBase implements Listener {
 
     static $instance;
 
+    const PMMP_INCOMPATIBLE = [
+        "Vacuum Hoppers",
+        "Sticky Slime Blocks"
+    ];
+
 
    public function onEnable(){
+       if($this->getServer()->getName() == "PocketMine-MP") {
+           $this->getLogger()->notice("This plugin only has partial support of Pocketmine due to all the features an API missing. The following things will be deactivated: " . implode(", ", self::PMMP_INCOMPATIBLE));
+       }
+
        self::$instance = $this;
 
        // Registering recipes
@@ -95,8 +105,11 @@ class Main extends PluginBase implements Listener {
        Tile::registerTile(StickTile::class);
 
        // Launch tasks
-       $this->getServer()->getScheduler()->scheduleRepeatingTask(new AttractTask($this), 5);
        $this->getServer()->getScheduler()->scheduleRepeatingTask(new Drop2CraftTask($this), 5);
+       if($this->getServer()->getName() !== "PocketMine-MP") {  // Removes uncessery lag on PMMP
+            $this->getServer()->getScheduler()->scheduleRepeatingTask(new AttractTask($this), 5);
+            $this->getServer()->getScheduler()->scheduleRepeatingTask(new StickTask($this), 1);
+       }
 
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
         $this->saveDefaultConfig();
@@ -107,18 +120,17 @@ class Main extends PluginBase implements Listener {
     /*
     When a custom block item is placed (Sticcky Slime Blocks, Vaccum hoppers and for Trap Blocks)
     @param     $event    \pocketmine\event\block\BlockPlaceEvent
-    @retu
     */
     public function onBlockPlace(\pocketmine\event\block\BlockPlaceEvent $event) {
         if(isset($event->getItem()->getNamedTag()->isStickable) && $event->getItem()->getNamedTag()->isStickable->getValue() == "true") {
-            Tile::createTile("StickTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode([$event->getBlock()->x, $event->getBlock()->y, $event->getBlock()->z], JSON_FORCE_OBJECT)));
+            $this->getLogger()->debug("Created tile Sticky Slime Block");
+            Tile::createTile("StickTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode(["x" => $event->getBlock()->x, "y" => $event->getBlock()->y, "z" => $event->getBlock()->z], JSON_FORCE_OBJECT)));
         } elseif(isset($event->getItem()->getNamedTag()->isVacuum) && $event->getItem()->getNamedTag()->isVacuum->getValue() == "true") {
             $this->getServer()->getScheduler()->scheduleRepeatingTask(new SetVacuumTask($this, $event->getBlock()), 1); // Tile gets created after the event so delaying it one 1 tick.
         } elseif(isset($event->getItem()->getNamedTag()->isTrapper) && $event->getItem()->getNamedTag()->isTrapper->getValue() == "true") {
-            Tile::createTile("TrapTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode([$event->getBlock()->x, $event->getBlock()->y - 1, $event->getBlock()->z], JSON_FORCE_OBJECT)));
+            Tile::createTile("TrapTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode(["x" => $event->getBlock()->x, "y" => $event->getBlock()->y - 1, "z" => $event->getBlock()->z], JSON_FORCE_OBJECT)));
             $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, Block::get(0, 0), $event->getBlock()->getLevel()), 30); // Clears the lever
         }
-        $this->getLogger()->debug("Created tile " . json_encode($event->getBlock()->getLevel()->getTile($event->getBlock())));
     }
 
 
@@ -180,6 +192,10 @@ class Main extends PluginBase implements Listener {
         if(isset($event->getItem()->getNamedTag()->isHammer) && $event->getItem()->getNamedTag()->isHammer == "true" && !($event->getBlock() instanceof \pocketmine\block\Fallable) && !($event->getBlock()->getLevel()->getTile($event->getBlock()) instanceof Tile)) {
             Tile::createTile("FallableTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON('{"x":"'.$event->getBlock()->x.'","y":"' .$event->getBlock()->y.'","z":"'. $event->getBlock()->z . '"}'));
             $event->getPlayer()->sendPopup("This block seems now unstable... You shouldn't walk on it...");
+        } elseif($event->getBlock()->getLevel()->getTile($event->getBlock()) instanceof SoundHolderTile) {
+            $s = SoundHolderTile::SOUNDS[rand(0, count(SoundHolderTile::SOUNDS) - 1)];
+            $event->getBlock()->getLevel()->getTile($event->getBlock())->setSound($s);
+            $event->getPlayer()->sendPopup("Sound has changed to $s.");
         }
     }
 
@@ -219,7 +235,7 @@ class Main extends PluginBase implements Listener {
 
 
     /*
-    Checks when a player moves to 1) Trigger traps blocks, 2) Set person as sticky 3) Makes fallable block fall if a player walks on it.
+    Checks when a player moves to 1) Trigger traps blocks 2) Makes fallable block fall if a player walks on it. 3) Play a sound when a player walks on it.
     @param     $event    \pocketmine\event\player\PlayerMoveEvent
     */
     public function onPlayerMove(\pocketmine\event\player\PlayerMoveEvent $event) {
@@ -237,12 +253,12 @@ class Main extends PluginBase implements Listener {
             $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, $b, $event->getPlayer()->getLevel()), 30);
         }
         // 2)
-        if($tileUnder instanceof StickTile || $tileUpper instanceof StickTile) {
-            $event->getPlayer()->setMotion($event->getPlayer()->getMotion()->x, 0, $event->getPlayer()->getMotion()->z);
-        }
-        // 3)
         if($tileUnder instanceof FallableTile) {
             $tileUnder->fall();
+        }
+        // 3)
+        if($tileUnder instanceof SoundHolderTile) {
+            $tileUnder->play();
         }
     }
 

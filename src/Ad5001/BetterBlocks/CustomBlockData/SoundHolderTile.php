@@ -18,6 +18,7 @@ use pocketmine\level\format\Chunk;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\StringTag;
 
+use Ad5001\BetterBlocks\Main;
 use Ad5001\BetterBlocks\CustomBlockData;
 
 
@@ -25,7 +26,6 @@ use Ad5001\BetterBlocks\CustomBlockData;
 class SoundHolderTile extends CustomBlockData {
 
     const SOUNDS = [
-        "AnvilBreakSound",
         "AnvilFallSound",
         "AnvilUseSound",
         "BatSound",
@@ -45,7 +45,7 @@ class SoundHolderTile extends CustomBlockData {
 
 
    public function __construct(Chunk $chunk, CompoundTag $nbt){
-       if(!isset($nbt->Sound)) $nbt->Sound = new StringTag("Sound", self::SOUND(rand(0, count(self::SOUNDS) - 1))); // TODO: Customize the sound
+       if(!isset($nbt->Sound)) $nbt->Sound = new StringTag("Sound", self::SOUNDS[rand(0, count(self::SOUNDS) - 1)]); // TODO: Customize the sound
        parent::__construct($chunk, $nbt);
    }
 
@@ -77,6 +77,7 @@ class SoundHolderTile extends CustomBlockData {
    */
    public function play() {
        $s = "\\pocketmine\\level\\sound\\" . $this->namedtag->Sound->getValue();
+       Main::$instance->getLogger()->debug("Playing sound $s...");
        $this->getLevel()->addSound(new $s($this));
    }
 
