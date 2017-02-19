@@ -67,11 +67,10 @@ class Drop2CraftTask extends PluginTask {
                         }
                         break;
                         case 69: // Levers drops
-                        $this->getLogger()->debug("Found lever");
                         $v3 = $et->round();
                         $v3->y--;
+                        if(isset($et->getItem()->getNamedTag()->isTrapper)) $this->main->getLogger()->debug("Found trapper");
                         if($et->getLevel()->getBlock($v3)->isSolid() && isset($et->getItem()->getNamedTag()->isTrapper)) {
-                            $this->getLogger()->debug("Found trapper");
                             Tile::createTile("TrapTile", $et->getLevel()->getChunk($v3->x >> 4, $v3->z >> 4), NBT::parseJSON(json_encode(["x" => $v3->x, "y" => $v3->y - 1, "z" => $v3->z], JSON_FORCE_OBJECT)));
                             $et->close();
                         }

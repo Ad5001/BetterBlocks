@@ -77,7 +77,6 @@ class SoundHolderTile extends CustomBlockData {
    */
    public function play() {
        $s = "\\pocketmine\\level\\sound\\" . $this->namedtag->Sound->getValue();
-       Main::$instance->getLogger()->debug("Playing sound $s...");
        $this->getLevel()->addSound(new $s($this));
    }
 

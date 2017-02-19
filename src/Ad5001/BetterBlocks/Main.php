@@ -28,6 +28,7 @@ use Ad5001\BetterBlocks\CustomBlockData\GraveTile;
 use Ad5001\BetterBlocks\CustomBlockData\RedstonePoweringTile;
 use Ad5001\BetterBlocks\CustomBlockData\SoundHolderTile;
 use Ad5001\BetterBlocks\CustomBlockData\StickTile;
+use Ad5001\BetterBlocks\CustomBlockData\TrapTile;
 
 use Ad5001\BetterBlocks\tasks\AttractTask;
 use Ad5001\BetterBlocks\tasks\BlockRegenerateTask;
@@ -41,13 +42,14 @@ class Main extends PluginBase implements Listener {
 
     const PMMP_INCOMPATIBLE = [
         "Vacuum Hoppers",
-        "Sticky Slime Blocks"
+        "Sticky Slime Blocks",
+        "Trappers"
     ];
 
 
    public function onEnable(){
-       if($this->getServer()->getName() == "PocketMine-MP") {
-           $this->getLogger()->notice("This plugin only has partial support of Pocketmine due to all the features an API missing. The following things will be deactivated: " . implode(", ", self::PMMP_INCOMPATIBLE));
+       if(!$this->isCompatible()) {
+           $this->getLogger()->notice("This plugin only has partial support of this PocketMine version ({$this->getServer()->getName()}) due to all the features an API missing. The following things will be deactivated: " . implode(", ", self::PMMP_INCOMPATIBLE));
        }
 
        self::$instance = $this;
@@ -102,11 +104,15 @@ class Main extends PluginBase implements Listener {
        Tile::registerTile(GraveTile::class);
        Tile::registerTile(RedstonePoweringTile::class);
        Tile::registerTile(SoundHolderTile::class);
-       Tile::registerTile(StickTile::class);
+       Tile::registerTile(TrapTile::class);
+
+       if($this->isCompatible()) {
+           Tile::registerTile(StickTile::class);
+       }
 
        // Launch tasks
        $this->getServer()->getScheduler()->scheduleRepeatingTask(new Drop2CraftTask($this), 5);
-       if($this->getServer()->getName() !== "PocketMine-MP") {  // Removes uncessery lag on PMMP
+       if($this->isCompatible()) {  // Removes uncessery lag on PMMP
             $this->getServer()->getScheduler()->scheduleRepeatingTask(new AttractTask($this), 5);
             $this->getServer()->getScheduler()->scheduleRepeatingTask(new StickTask($this), 1);
        }
@@ -122,14 +128,15 @@ class Main extends PluginBase implements Listener {
     @param     $event    \pocketmine\event\block\BlockPlaceEvent
     */
     public function onBlockPlace(\pocketmine\event\block\BlockPlaceEvent $event) {
-        if(isset($event->getItem()->getNamedTag()->isStickable) && $event->getItem()->getNamedTag()->isStickable->getValue() == "true") {
-            $this->getLogger()->debug("Created tile Sticky Slime Block");
-            Tile::createTile("StickTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode(["x" => $event->getBlock()->x, "y" => $event->getBlock()->y, "z" => $event->getBlock()->z], JSON_FORCE_OBJECT)));
-        } elseif(isset($event->getItem()->getNamedTag()->isVacuum) && $event->getItem()->getNamedTag()->isVacuum->getValue() == "true") {
-            $this->getServer()->getScheduler()->scheduleRepeatingTask(new SetVacuumTask($this, $event->getBlock()), 1); // Tile gets created after the event so delaying it one 1 tick.
-        } elseif(isset($event->getItem()->getNamedTag()->isTrapper) && $event->getItem()->getNamedTag()->isTrapper->getValue() == "true") {
-            Tile::createTile("TrapTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode(["x" => $event->getBlock()->x, "y" => $event->getBlock()->y - 1, "z" => $event->getBlock()->z], JSON_FORCE_OBJECT)));
-            $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, Block::get(0, 0), $event->getBlock()->getLevel()), 30); // Clears the lever
+        if($this->isCompatible()) {
+            if(isset($event->getItem()->getNamedTag()->isStickable) && $event->getItem()->getNamedTag()->isStickable->getValue() == "true") {
+                Tile::createTile("StickTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode(["x" => $event->getBlock()->x, "y" => $event->getBlock()->y, "z" => $event->getBlock()->z], JSON_FORCE_OBJECT)));
+            } elseif(isset($event->getItem()->getNamedTag()->isVacuum) && $event->getItem()->getNamedTag()->isVacuum->getValue() == "true") {
+                $this->getServer()->getScheduler()->scheduleRepeatingTask(new SetVacuumTask($this, $event->getBlock()), 1); // Tile gets created after the event so delaying it one 1 tick.
+            } elseif(isset($event->getItem()->getNamedTag()->isTrapper) && $event->getItem()->getNamedTag()->isTrapper->getValue() == "true") {
+                Tile::createTile("TrapTile", $event->getBlock()->getLevel()->getChunk($event->getBlock()->x >> 4, $event->getBlock()->z >> 4), NBT::parseJSON(json_encode(["x" => $event->getBlock()->x, "y" => $event->getBlock()->y - 1, "z" => $event->getBlock()->z], JSON_FORCE_OBJECT)));
+                $this->getServer()->getScheduler()->scheduleDelayedTask(new BlockRegenerateTask($this, Block::get(0, 0), $event->getBlock()->getLevel()), 30); // Clears the lever
+            }
         }
     }
 
@@ -184,7 +191,7 @@ class Main extends PluginBase implements Listener {
 
 
     /*
-    Check if a player touches a block. Check if he right clicks ill a hammer.
+    Check if a player touches a block. Check if he right clicks ill a hammer or will change the sound of a sound holder block.
     @param     $event    \pocketmine\event\player\PlayerInteractEvent
     */
     public function onInteract(\pocketmine\event\player\PlayerInteractEvent $event) {
@@ -205,7 +212,13 @@ class Main extends PluginBase implements Listener {
     @param     $event    \pocketmine\event\player\PlayerDropItemEvent
     */
     public function onPlayerItemDrop(\pocketmine\event\player\PlayerDropItemEvent $event) {
-        $event->getItem()->setNamedTag(NBT::parseJSON('{"isDropedByPlayer":"true"}'));
+        $tag = $event->getItem()->getNamedTag();
+        if(is_null($tag)) {
+            $tag = NBT::parseJSON('{"isDropedByPlayer":"true"}');
+        } else {
+            $tag->isDropedByPlayer = new \pocketmine\nbt\tag\StringTag("true");
+        }
+        $event->getItem()->setNamedTag($tag);
     }
 
 
@@ -260,6 +273,16 @@ class Main extends PluginBase implements Listener {
         if($tileUnder instanceof SoundHolderTile) {
             $tileUnder->play();
         }
+    }
+
+
+
+    /*
+    Cheks compatibilty issues for PMMP and other uncompatible software.
+    @return bool
+    */
+    public function isCompatible() : bool {
+        return class_exists("pocketmine\\tile\\Hopper") && class_exists("pocketmine\\block\\SlimeBlock") && class_exists("pocketmine\\item\\Lever"); 
     }
 
 
