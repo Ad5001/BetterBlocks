@@ -282,7 +282,11 @@ class Main extends PluginBase implements Listener {
     @return bool
     */
     public function isCompatible() : bool {
-        return class_exists("pocketmine\\tile\\Hopper") && class_exists("pocketmine\\block\\SlimeBlock") && class_exists("pocketmine\\item\\Lever"); 
+        try {
+            return @class_exists("pocketmine\\tile\\Hopper") && @class_exists("pocketmine\\block\\SlimeBlock")/* && @class_exists("pocketmine\\item\\Lever")*/; 
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
 
