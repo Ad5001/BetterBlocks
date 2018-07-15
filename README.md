@@ -1,3 +1,4 @@
+## This repository was moved to [git.ad5001.eu](https://git.ad5001.eu/Ad5001/BetterBlocks)
 ![banner](https://raw.githubusercontent.com/Ad5001/BetterBlocks/master/Banner.png)    
 Are normal minecraft blocks features enought for you?    
 If not, discover 6 (soon 7) features that changes how will your player see blocks !    
